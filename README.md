@@ -1,46 +1,58 @@
-SkyHack Challenge
-Team: Deadline Dominators
-A data analysis project by Navneet Singh and Pratyush Senhi for the SkyHack Challenge.
+Team: Deadline Dominators (Navneet Singh & Pratyush Senhi)
+Live Demonstration: https://navneetsinghl9.github.io/skyhack_3.0/
+1. Problem Statement: The Imperative for Proactive Operations
+Airport ground handling represents a significant logistical challenge wherein minor disruptions can propagate throughout the network, leading to substantial financial repercussions and widespread passenger inconvenience. The principal challenge confronting ground operations managers lies in the transition from a reactive to a proactive operational paradigm—moving from addressing delays as they arise to mitigating risks before they materialize. This strategic shift necessitates an analytical tool capable of identifying high-risk flights with precision and immediacy.
 
-1. Introduction
-This project provides a robust data pipeline built in SQL to analyze and predict the operational difficulty of airline flight turnarounds. By processing five distinct raw data sources, the script calculates a custom difficulty_score for each flight, allowing for proactive resource allocation and operational planning.
-The final output ranks each flight by its predicted difficulty and classifies it as 'Easy', 'Medium', or 'Difficult', providing an at-a-glance tool for ground operations teams.
+2. Proposed Solution: An Actionable Intelligence Hub
+The proposed solution is an interactive, real-time dashboard that synthesizes disparate operational data streams into a prioritized, actionable framework. This platform provides a consolidated overview of daily operational complexity, thereby enabling management to strategically identify and allocate resources to flights exhibiting the highest degree of risk.
 
-2. The Solution: A SQL-Powered Pipeline
-The core of this project is a single, clean SQL script that performs the entire data transformation and analysis process. The script is designed to be easy to run and understand, using temporary tables to logically separate each step of the process.
+3. Core Functionalities
+Predictive Complexity Score: A proprietary metric engineered to quantify the operational complexity of individual flights. The score is derived from a weighted model incorporating variables such as passenger load, baggage transfer ratios, and the volume of special service requests.
 
-Our Methodology
-The analysis follows a clear, step-by-step methodology:
-Aggregate Passenger Data: The first step correctly calculates the total number of passengers for each unique flight, handling complexities like single bookings (PNRs) with multiple passengers.
-Aggregate Baggage Data: It then processes bag-level data to count the total number of bags, as well as segmenting them into Transfer and Origin bags.
-Aggregate Special Service Requests (SSRs): The script joins PNR data to count the number of special service requests (like wheelchairs or unaccompanied minors) associated with each flight.
-Combine and Calculate Metrics: All the aggregated data is joined back to the main flight data. Key performance indicators are then calculated, including:
-load_factor
-bags_per_pax
-transfer_ratio
-ssr_per_100pax
-delay_minutes
-Score, Rank, and Classify: Finally, a custom difficulty_score is calculated based on the metrics. Flights are then ranked against others on the same day, and a final difficulty_class is assigned.
+Dynamic Data Filtering: The dashboard features dynamic filtering capabilities, enabling granular data analysis by date, airline, and the calculated difficulty classification.
 
-3. Data Sources
-The analysis is powered by the following five datasets:
-flight_level_data.csv
-pnr_flight_level_data.csv
-bag_level_data_1.csv
-pnr_remark_level_data_2.csv
-airports_data.csv
+Real-Time Key Performance Indicators (KPIs): A suite of KPIs provides a real-time summary of critical operational metrics, including total flight volume, average delay duration, and a count of flights classified as 'Difficult', complete with comparative analysis against the preceding day's performance.
 
-5. How to Run the Code
-To replicate this analysis, follow these steps:
-Set Up a Database: Use a SQL environment that supports temporary tables (like PostgreSQL).
-Create Tables: Create five tables in your database with names and schemas that match the columns in the CSV files.
-"flight_level_data"
-"pnr_flight_level_data"
-"bag_level_data_1"
-"pnr_remark_level_data_2"
-Load Data: Import the data from each CSV file into its corresponding table.
-Execute the Script: Run the complete SQL script provided in this repository. The script is self-contained and will produce the final ranked and classified list of flights.
+Prioritized Action List: A dynamically updated table highlights the ten flights with the highest complexity scores, serving as a primary daily action plan for operational managers.
 
-5. Team Members
-Navneet Singh
-Pratyush Senhi
+Advanced Visualizations: Interactive charts facilitate a deeper analytical exploration of the data, illustrating the distribution and trends of flight complexity scores and classifications.
+
+4. Methodology: The Data Pipeline
+The solution is underpinned by a robust data processing pipeline responsible for the ingestion, cleansing, aggregation, and enrichment of information from multiple disparate sources. This process culminates in the generation of a final, analysis-ready dataset (skyhack_excel.csv) that powers the dashboard.
+
+Primary Data Sources:
+
+Flight Level Data.csv: Contains core flight schedules, fleet specifications, and scheduled ground times.
+
+PNR Flight Level Data.csv: Provides detailed passenger booking information (PNR).
+
+Bag Level Data (1).csv: Includes specifics on individual baggage items, distinguishing between origin and transfer.
+
+PNR Remark Level Data (2).csv: Details special service requests (SSRs) associated with bookings.
+
+Airports Data (1).csv: Comprises supplementary airport metadata.
+
+SQL-Based Data Transformation:
+A comprehensive SQL script (skyhack_code.sql) executes the primary data transformation logic:
+
+Aggregation and Cleansing: Performs accurate calculation of passenger totals (by handling unique PNRs), baggage counts, and SSR volumes for each discrete flight.
+
+Data Integration: Joins the five distinct data sources into a unified, cohesive dataset.
+
+Metric Calculation: Computes essential operational metrics, including load factor, transfer ratio, and delay duration in minutes.
+
+Complexity Scoring and Ranking: Applies the proprietary algorithm to generate the final difficulty_score and subsequently ranks each flight relative to its peers on a daily basis.
+
+5. Technical Implementation
+The project was implemented utilizing the following technologies:
+
+Data Transformation: Standard SQL was employed for all data cleansing, aggregation, and metric calculation tasks.
+
+Frontend Development: The dashboard interface was constructed using HTML5 and styled with the Tailwind CSS utility-first framework.
+
+Data Visualization: All graphical representations of data were rendered using the Chart.js library.
+
+Client-Side Logic: Dynamic interactivity and data filtering were implemented using modern JavaScript (ES6).
+
+6. Conclusion and Impact
+The resulting dashboard delivers a comprehensive, 360-degree perspective on daily ground operations. By presenting complex data in an intuitive and actionable format, it empowers management to transition from reactive troubleshooting to strategic, data-driven decision-making. This ultimately leads to enhanced operational efficiency, reduced delays, and an improved overall passenger experience.
