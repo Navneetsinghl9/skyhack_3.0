@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Turnaround Complexity Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #f8fafc; /* Slate 50 */
+        }
+        .card {
+            background-color: #1e293b; /* Slate 800 */
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid #334155; /* Slate 700 */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .filter-input {
+            background-color: #334155; /* Slate 700 */
+            border: 1px solid #475569; /* Slate 600 */
+            color: #f8fafc; /* Slate 50 */
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+        }
+        .filter-input:focus {
+            outline: none;
+            border-color: #38bdf8; /* Sky 400 */
+            box-shadow: 0 0 0 2px #1e293b, 0 0 0 4px #38bdf8;
+        }
+        /* Custom scrollbar for table */
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background-color: #475569;
+            border-radius: 10px;
+            border: 2px solid #1e293b;
+        }
+        .loader {
+            border: 4px solid #334155;
+            border-left-color: #38bdf8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 lg:p-8">
+
+    <!-- This is the loading screen. It shows up first while data is prepared. -->
+    <div id="loader-container" class="fixed inset-0 bg-slate-900 bg-opacity-80 flex justify-center items-center z-50">
+        <div class="text-center">
+            <div class="loader mx-auto"></div>
+            <p class="mt-4 text-slate-300 font-semibold">Loading Flight Data...</p>
+        </div>
+    </div>
+
+    <!-- This is the main dashboard content, hidden until the data is ready. -->
+    <div id="dashboard-content" class="max-w-7xl mx-auto opacity-0 transition-opacity duration-500">
+        <!-- Header -->
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold text-white">Flight Operations Dashboard</h1>
+            <p class="text-slate-400 mt-1">Real-time analysis of turnaround complexity.</p>
+        </header>
+
+        <!-- Filters -->
+        <div class="mb-6 card flex flex-wrap gap-4 items-center">
+            <div class="flex-grow">
+                <label for="date-filter" class="block text-sm font-medium text-slate-300 mb-1">Date</label>
+                <input type="date" id="date-filter" class="filter-input w-full sm:w-auto">
+            </div>
+            <div class="flex-grow">
+                <label for="airline-filter" class="block text-sm font-medium text-slate-300 mb-1">Airline</label>
+                <select id="airline-filter" class="filter-input w-full sm:w-auto">
+                    <option value="all">All Airlines</option>
+                </select>
+            </div>
+            <div class="flex-grow">
+                 <label for="difficulty-filter" class="block text-sm font-medium text-slate-300 mb-1">Difficulty Class</label>
+                <select id="difficulty-filter" class="filter-input w-full sm:w-auto">
+                    <option value="all">All Classes</option>
+                    <option value="Difficult">Difficult</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Easy">Easy</option>
+                </select>
+            </div>
+            <div class="self-end">
+                <button id="reset-filters" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 rounded-lg transition-colors w-full sm:w-auto">Reset</button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div class="card">
+                <h3 class="text-slate-400 font-medium">Total Flights</h3>
+                <p id="total-flights" class="text-4xl font-bold text-white mt-2">--</p>
+                <p id="flights-change" class="text-sm text-slate-500 mt-1">vs yesterday</p>
+            </div>
+            <div class="card">
+                <h3 class="text-slate-400 font-medium">Avg. Delay (Mins)</h3>
+                <p id="avg-delay" class="text-4xl font-bold text-white mt-2">--</p>
+                <p id="delay-change" class="text-sm text-slate-500 mt-1">vs yesterday</p>
+            </div>
+            <div class="card">
+                <h3 class="text-slate-400 font-medium">'Difficult' Flights</h3>
+                <p id="difficult-flights-count" class="text-4xl font-bold text-red-400 mt-2">--</p>
+                <p id="difficult-flights-pct" class="text-sm text-slate-500 mt-1">of total</p>
+            </div>
+            <div class="card">
+                <h3 class="text-slate-400 font-medium">Avg. Transfer Ratio</h3>
+                <p id="avg-transfer-ratio" class="text-4xl font-bold text-white mt-2">--</p>
+                 <p id="transfer-ratio-change" class="text-sm text-slate-500 mt-1">vs yesterday</p>
+            </div>
+        </div>
+        
+        <!-- Main Dashboard Area -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column: Charts -->
+            <div class="lg:col-span-2 flex flex-col gap-6">
+                <div class="card h-96 flex flex-col">
+                    <h3 class="text-lg font-semibold text-white mb-4">Flights by Difficulty Class</h3>
+                    <div class="relative flex-grow">
+                        <canvas id="difficulty-pie-chart"></canvas>
+                    </div>
+                </div>
+                 <div class="card h-96 flex flex-col">
+                    <h3 class="text-lg font-semibold text-white mb-4">Complexity Score Distribution</h3>
+                     <div class="relative flex-grow">
+                        <canvas id="score-histogram"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Top Flights Table -->
+            <div class="card lg:col-span-1">
+                <h3 class="text-lg font-semibold text-white mb-4">Top 10 Most Complex Flights</h3>
+                <div class="table-container overflow-x-auto h-[760px]">
+                    <table class="w-full text-left text-sm">
+                        <thead class="text-xs text-slate-400 uppercase sticky top-0 bg-slate-800">
+                            <tr>
+                                <th scope="col" class="px-4 py-3">Flight</th>
+                                <th scope="col" class="px-4 py-3">Score</th>
+                                <th scope="col" class="px-4 py-3">Class</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-flights-table">
+                           <!-- Rows will be injected by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- DATA SOURCE ---
+// The entire CSV is embedded here. This makes the HTML file a single, standalone dashboard.
+const csvData = `company_id,flight_number,scheduled_departure_date_local,scheduled_departure_station_code,scheduled_arrival_station_code,scheduled_departure_datetime_local,scheduled_arrival_datetime_local,total_seats,total_pax,load_factor,scheduled_ground,total_bags,bags_per_pax,transfer_bags,checked_bags,transfer_ratio,ssr_count,ssr_per_100pax,delay_minutes,difficulty_score,daily_rank,daily_rank_pct,difficulty_class
+G7,4597,01-08-2025,ORD,ROA,01-08-2025 07:15,01-08-2025 10:14,50,73,1.46,664,35,0.479452055,29,0,0.828571429,1,1.369863014,-12,2.350189952,39,0.069518717,Difficult
+G7,4391,02-08-2025,ORD,SGF,02-08-2025 20:06,02-08-2025 22:00,50,54,1.08,76,57,1.055555556,54,0,0.947368421,1,1.851851852,1,2.946315789,14,0.024734513,Difficult
+UA,2494,04-08-2025,ORD,MCI,04-08-2025 08:35,04-08-2025 10:16,70,68,0.971428571,59,20,0.294117647,19,0,0.95,1,1.470588235,0,2.695588235,27,0.048387097,Difficult
+UA,2494,01-08-2025,ORD,MCI,01-08-2025 08:35,01-08-2025 10:16,70,72,1.028571429,59,33,0.458333333,28,0,0.848484848,1,1.388888889,-6,2.384212121,35,0.062388592,Difficult
+UA,2483,06-08-2025,ORD,IAH,06-08-2025 06:15,06-08-2025 09:12,126,143,1.134920635,124,142,0.993006993,124,0,0.873239437,2,1.398601399,7,2.529245138,32,0.056945329,Difficult
+UA,1620,01-08-2025,ORD,SEA,01-08-2025 07:00,01-08-2025 09:50,166,168,1.012048193,80,183,1.089285714,152,0,0.830601093,2,1.19047619,1,2.38559139,36,0.064171123,Difficult
+UA,2403,04-08-2025,ORD,MCI,04-08-2025 18:30,04-08-2025 20:09,70,66,0.942857143,45,26,0.393939394,22,0,0.846153846,0,,2,1.731707692,130,0.233007169,Difficult
+UA,2627,01-08-2025,ORD,MSP,01-08-2025 11:41,01-08-2025 13:21,70,72,1.028571429,49,56,0.777777778,54,0,0.964285714,1,1.388888889,6,2.957142857,11,0.019607843,Difficult
+UA,2232,01-08-2025,ORD,MSP,01-08-2025 08:00,01-08-2025 09:36,76,79,1.039473684,64,80,1.012658228,78,0,0.975,0,,1,2.625,28,0.049910873,Difficult
+UA,622,01-08-2025,ORD,DEN,01-08-2025 10:20,01-08-2025 12:08,126,128,1.015873016,117,144,1.125,128,0,0.888888889,1,0.78125,-8,2.449027778,33,0.058823529,Difficult
+UA,1205,02-08-2025,ORD,PVD,02-08-2025 08:35,02-08-2025 11:49,126,140,1.111111111,54,99,0.707142857,84,0,0.848484848,1,0.714285714,-2,2.258079134,71,0.126548673,Difficult
+UA,2703,02-08-2025,ORD,STL,02-08-2025 10:25,02-08-2025 11:51,70,72,1.028571429,54,39,0.541666667,39,0,1,0,,3,2.541666667,35,0.0625,Difficult
+UA,2182,04-08-2025,ORD,DCA,04-08-2025 06:15,04-08-2025 09:12,126,134,1.063492063,78,103,0.768656716,92,0,0.893203883,1,0.746268657,2,2.44111818,41,0.073476613,Difficult
+UA,534,04-08-2025,ORD,MCO,04-08-2025 08:30,04-08-2025 12:20,179,190,1.061452514,95,200,1.052631579,178,0,0.89,1,0.526315789,14,2.406315789,45,0.080645161,Difficult
+UA,2100,02-08-2025,ORD,BOS,02-08-2025 17:00,02-08-2025 20:30,126,140,1.111111111,90,132,0.942857143,121,0,0.916666667,1,0.714285714,-8,2.518651515,40,0.071386431,Difficult
+UA,1693,02-08-2025,ORD,DCA,02-08-2025 18:00,02-08-2025 21:03,126,136,1.079365079,77,133,0.977941176,122,0,0.917293233,1,0.735294118,-8,2.547535405,37,0.066071429,Difficult
+UA,2331,01-08-2025,ORD,PHL,01-08-2025 06:15,01-08-2025 09:22,126,134,1.063492063,73,119,0.888059701,107,0,0.899159664,1,0.746268657,1,2.444795393,34,0.060606061,Difficult
+UA,5380,01-08-2025,ORD,LGA,01-08-2025 07:00,01-08-2025 10:19,126,138,1.095238095,96,139,1.007246377,126,0,0.90647482,1,0.724637681,6,2.545197063,31,0.055258467,Difficult
+UA,2154,01-08-2025,ORD,DCA,01-08-2025 17:00,01-08-2025 20:01,126,144,1.142857143,109,129,0.895833333,116,0,0.899224806,1,0.694444444,-5,2.442906977,35,0.062388592,Difficult
+UA,265,03-08-2025,ORD,AUS,03-08-2025 17:35,03-08-2025 20:30,179,190,1.061452514,105,175,0.921052632,156,0,0.891428571,0,,4,2.302481203,59,0.104424779,Difficult
+UA,265,04-08-2025,ORD,AUS,04-08-2025 17:35,04-08-2025 20:30,179,190,1.061452514,105,183,0.963157895,166,0,0.907103825,0,,-1,2.277366718,65,0.116517025,Difficult
+UA,2425,02-08-2025,ORD,DFW,02-08-2025 12:45,02-08-2025 15:20,179,186,1.039106145,100,169,0.908602151,155,0,0.917159763,0,,7,2.27202381,68,0.121428571,Difficult
+UA,1989,01-08-2025,ORD,LAS,01-08-2025 11:25,01-08-2025 13:35,179,183,1.022346369,120,205,1.119672131,180,0,0.87804878,0,,2,2.375720248,37,0.065953654,Difficult
+UA,1989,02-08-2025,ORD,LAS,02-08-2025 11:25,02-08-2025 13:35,179,192,1.072625698,120,208,1.083333333,186,0,0.894230769,1,0.520833333,7,2.463399038,40,0.071386431,Difficult
+UA,1989,03-08-2025,ORD,LAS,03-08-2025 11:25,03-08-2025 13:35,179,189,1.055865922,120,210,1.111111111,185,0,0.880952381,0,,-1,2.317777778,51,0.090265487,Difficult
+UA,1989,04-08-2025,ORD,LAS,04-08-2025 11:25,04-08-2025 13:35,179,192,1.072625698,120,204,1.0625,183,0,0.897058824,0,,-6,2.331617647,53,0.094982079,Difficult
+UA,4453,02-08-2025,ORD,EWR,02-08-2025 17:00,02-08-2025 20:25,179,190,1.061452514,100,199,1.047368421,177,0,0.889447236,1,0.526315789,2,2.380189474,48,0.085714286,Difficult
+UA,5631,01-08-2025,ORD,BOS,01-08-2025 06:00,01-08-2025 09:28,179,187,1.044692737,107,173,0.92513369,157,0,0.907514451,1,0.534759358,0,2.399463993,34,0.060606061,Difficult
+UA,4431,03-08-2025,ORD,DEN,03-08-2025 20:15,03-08-2025 22:04,179,192,1.072625698,131,211,1.098958333,186,0,0.881516588,0,,-1,2.335552941,47,0.083185841,Difficult
+UA,4431,04-08-2025,ORD,DEN,04-08-2025 20:15,04-08-2025 22:04,179,190,1.061452514,131,192,1.010526316,172,0,0.895833333,0,,-1,2.302192982,59,0.105734767,Difficult
+UA,2488,01-08-2025,ORD,DFW,01-08-2025 07:40,01-08-2025 10:20,179,188,1.05027933,75,185,0.984042553,165,0,0.891891892,1,0.531914894,-2,2.361998498,38,0.067736182,Difficult
+UA,1117,04-08-2025,ORD,MCO,04-08-2025 17:30,04-08-2025 21:18,202,214,1.059405941,107,243,1.135514019,219,0,0.901234568,0,,2,2.448197793,39,0.069892473,Difficult
+UA,929,03-08-2025,ORD,FRA,03-08-2025 21:40,04-08-2025 13:20,214,213,0.995327103,130,266,1.248826291,241,0,0.906015038,0,,2,2.545643458,30,0.053097345,Difficult
+UA,944,03-08-2025,ORD,FRA,03-08-2025 16:15,04-08-2025 07:55,243,247,1.016460905,160,286,1.157894737,258,0,0.902097902,0,,6,2.480072124,37,0.065486726,Difficult
+UA,944,04-08-2025,ORD,FRA,04-08-2025 16:15,05-08-2025 07:55,243,248,1.020576132,160,287,1.157258065,262,0,0.912891986,0,,1,2.506307739,34,0.0609319,Difficult
+BA,296,01-08-2025,ORD,LHR,01-08-2025 21:05,02-08-2025 11:05,214,228,1.065420561,150,233,1.021929825,216,0,0.927038627,0,,3,2.41940798,40,0.071301248,Difficult
+BA,296,02-08-2025,ORD,LHR,02-08-2025 21:05,03-08-2025 11:05,214,228,1.065420561,150,233,1.021929825,212,0,0.910000000,0,,-1,2.385420561,48,0.085714286,Difficult
+BA,296,03-08-2025,ORD,LHR,03-08-2025 21:05,04-08-2025 11:05,214,225,1.051401869,150,235,1.044444444,213,0,0.906382979,0,,-1,2.364183692,44,0.077876106,Difficult
+BA,296,04-08-2025,ORD,LHR,04-08-2025 21:05,05-08-2025 11:05,214,226,1.056074766,150,230,1.017699115,209,0,0.908695652,0,,3,2.373419969,49,0.08781362,Difficult
+BA,294,01-08-2025,ORD,LHR,01-08-2025 17:15,02-08-2025 07:10,216,230,1.064814815,160,240,1.043478261,223,0,0.929166667,0,,0,2.423148148,39,0.069518717,Difficult
+BA,294,02-08-2025,ORD,LHR,02-08-2025 17:15,03-08-2025 07:10,216,229,1.060185185,160,241,1.052401747,222,0,0.921161826,0,,2,2.403507198,46,0.082142857,Difficult
+BA,294,03-08-2025,ORD,LHR,03-08-2025 17:15,04-08-2025 07:10,216,232,1.074074074,160,240,1.034482759,224,0,0.933333333,0,,-2,2.441419753,41,0.072566372,Difficult
+BA,294,04-08-2025,ORD,LHR,04-08-2025 17:15,05-08-2025 07:10,216,230,1.064814815,160,238,1.034782609,219,0,0.919747899,0,,1,2.399330965,47,0.084229391,Difficult
+UA,934,01-08-2025,ORD,LHR,01-08-2025 09:00,01-08-2025 22:55,276,279,1.010869565,150,302,1.082437276,278,0,0.920529801,0,,-2,2.451877685,32,0.057041000,Difficult
+UA,934,02-08-2025,ORD,LHR,02-08-2025 09:00,02-08-2025 22:55,276,280,1.014492754,150,307,1.096428571,281,0,0.915309446,0,,0,2.445022802,41,0.073214286,Difficult
+UA,934,03-08-2025,ORD,LHR,03-08-2025 09:00,03-08-2025 22:55,276,280,1.014492754,150,302,1.078571429,279,0,0.92384106,0,,0,2.462153392,39,0.069026549,Difficult
+UA,934,04-08-2025,ORD,LHR,04-08-2025 09:00,04-08-2025 22:55,276,282,1.02173913,150,306,1.085106383,283,0,0.924836601,0,,-3,2.458087961,38,0.068100358,Difficult
+YX,3718,01-08-2025,ORD,MSN,01-08-2025 21:05,01-08-2025 22:04,65,70,1.076923077,66,35,0.5,33,0,0.942857143,0,,3,2.462434542,29,0.051693405,Difficult
+G7,4403,01-08-2025,ORD,GRB,01-08-2025 15:58,01-08-2025 17:09,50,68,1.36,66,54,0.794117647,48,0,0.888888889,0,,2,2.432828283,38,0.067736182,Difficult
+G7,4443,02-08-2025,ORD,DAY,02-08-2025 12:45,02-08-2025 15:00,50,57,1.14,65,49,0.859649123,43,0,0.87755102,0,,-1,2.252200143,73,0.12920354,Difficult
+OO,5291,01-08-2025,ORD,IND,01-08-2025 18:25,01-08-2025 20:31,70,72,1.028571429,66,51,0.708333333,46,0,0.901960784,0,,2,2.238864146,128,0.228163993,Difficult
+OO,5291,02-08-2025,ORD,IND,02-08-2025 18:25,02-08-2025 20:31,70,72,1.028571429,66,48,0.666666667,45,0,0.9375,0,,1,2.370833333,50,0.089285714,Difficult
+OO,5362,01-08-2025,ORD,MKE,01-08-2025 16:30,01-08-2025 17:29,50,55,1.1,64,31,0.563636364,28,0,0.903225806,0,,2,2.26986217,112,0.199643494,Difficult
+OO,5362,02-08-2025,ORD,MKE,02-08-2025 16:30,02-08-2025 17:29,50,54,1.08,64,30,0.555555556,26,0,0.866666667,0,,1,2.152222222,125,0.221238938,Difficult
+OO,5140,01-08-2025,ORD,CMX,01-08-2025 15:58,01-08-2025 18:41,50,56,1.12,61,28,0.5,25,0,0.892857143,0,,-1,2.197619048,137,0.244206774,Difficult
+OO,5140,02-08-2025,ORD,CMX,02-08-2025 15:58,02-08-2025 18:41,50,55,1.1,61,25,0.454545455,22,0,0.88,0,,-2,2.114545455,140,0.247787611,Difficult
+OO,5021,01-08-2025,ORD,SUX,01-08-2025 12:45,01-08-2025 14:23,50,52,1.04,43,15,0.288461538,13,0,0.866666667,0,,-1,1.96025641,175,0.311943004,Medium
+UA,1823,05-08-2025,ORD,IAH,05-08-2025 21:00,05-08-2025 23:59,126,134,1.063492063,74,131,0.97761194,118,0,0.900763359,0,,1,2.442263433,41,0.073214286,Difficult
+UA,2387,09-08-2025,ORD,MCO,09-08-2025 13:50,09-08-2025 17:42,179,190,1.061452514,107,204,1.073684211,180,0,0.882352941,0,,2,2.378947368,46,0.081560284,Difficult
+UA,2179,07-08-2025,ORD,SFO,07-08-2025 18:30,07-08-2025 21:19,166,172,1.036144578,111,185,1.075581395,166,0,0.897297297,0,,-2,2.309023256,54,0.096428571,Difficult
+G7,4380,06-08-2025,ORD,SYR,06-08-2025 10:25,06-08-2025 13:20,50,56,1.12,65,51,0.910714286,45,0,0.882352941,0,,2,2.315419554,54,0.096120819,Difficult
+OO,5448,02-08-2025,ORD,FWA,02-08-2025 10:25,02-08-2025 12:30,50,54,1.08,45,30,0.555555556,26,0,0.866666667,0,,-1,2.152222222,125,0.221238938,Difficult
+OO,5499,12-08-2025,ORD,SBN,12-08-2025 21:05,12-08-2025 23:05,50,54,1.08,65,15,0.277777778,13,0,0.866666667,0,,0,1.944444444,171,0.302654867,Medium
+G7,4403,15-08-2025,ORD,GRB,15-08-2025 15:58,15-08-2025 17:09,50,53,1.06,66,32,0.603773585,28,0,0.875,0,,-1,2.152641509,144,0.258992806,Difficult
+UA,2494,11-08-2025,ORD,MCI,11-08-2025 08:35,11-08-2025 10:16,70,68,0.971428571,59,31,0.455882353,28,0,0.903225806,0,,2,2.147794118,142,0.252669039,Difficult
+UA,2494,15-08-2025,ORD,MCI,15-08-2025 08:35,15-08-2025 10:16,70,72,1.028571429,59,25,0.347222222,23,0,0.92,0,,-2,2.095793651,154,0.276935261,Medium
+UA,2483,13-08-2025,ORD,IAH,13-08-2025 06:15,13-08-2025 09:12,126,134,1.063492063,124,124,0.925373134,111,0,0.89516129,0,,-2,2.344024627,51,0.090265487,Difficult
+UA,2483,12-08-2025,ORD,IAH,12-08-2025 06:15,12-08-2025 09:12,126,132,1.047619048,124,119,0.901515152,107,0,0.899159664,0,,-1,2.308294441,55,0.097345133,Difficult
+UA,1620,15-08-2025,ORD,SEA,15-08-2025 07:00,15-08-2025 09:50,166,170,1.024096386,80,189,1.111764706,170,0,0.8994709,0,,-2,2.33533175,51,0.091726844,Difficult
+UA,2403,11-08-2025,ORD,MCI,11-08-2025 18:30,11-08-2025 20:09,70,66,0.942857143,45,32,0.484848485,28,0,0.875,0,,2,1.964848485,169,0.300711744,Medium
+UA,2627,15-08-2025,ORD,MSP,15-08-2025 11:41,15-08-2025 13:21,70,72,1.028571429,49,38,0.527777778,35,0,0.921052632,0,,-1,2.277401316,122,0.21942446,Difficult
+UA,2232,15-08-2025,ORD,MSP,15-08-2025 08:00,15-08-2025 09:36,76,80,1.052631579,64,83,1.0375,76,0,0.915662651,0,,1,2.445793574,40,0.071942446,Difficult
+UA,2232,14-08-2025,ORD,MSP,14-08-2025 08:00,14-08-2025 09:36,76,78,1.026315789,64,75,0.961538462,68,0,0.906666667,0,,0,2.344551282,51,0.091071429,Difficult
+UA,622,15-08-2025,ORD,DEN,15-08-2025 10:20,15-08-2025 12:08,126,128,1.015873016,117,131,1.0234375,118,0,0.900763359,0,,-1,2.240087882,75,0.13490018,Difficult
+UA,1205,15-08-2025,ORD,PVD,15-08-2025 08:35,15-08-2025 11:49,126,134,1.063492063,54,82,0.611940299,70,0,0.853658537,0,,1,2.029091871,158,0.284172662,Medium
+UA,1205,14-08-2025,ORD,PVD,14-08-2025 08:35,14-08-2025 11:49,126,138,1.095238095,54,92,0.666666667,82,0,0.891304348,0,,-2,2.153188406,94,0.167857143,Difficult
+UA,2703,15-08-2025,ORD,STL,15-08-2025 10:25,15-08-2025 11:51,70,72,1.028571429,54,30,0.416666667,27,0,0.9,0,,1,2.145238095,146,0.262589928,Difficult
+UA,2182,11-08-2025,ORD,DCA,11-08-2025 06:15,11-08-2025 09:12,126,132,1.047619048,78,98,0.742424242,88,0,0.897959184,0,,2,2.188003927,87,0.154715293,Difficult
+UA,534,11-08-2025,ORD,MCO,11-08-2025 08:30,11-08-2025 12:20,179,190,1.061452514,95,203,1.068421053,180,0,0.886699507,0,,-2,2.316573178,53,0.09430622,Difficult
+UA,2100,15-08-2025,ORD,BOS,15-08-2025 17:00,15-08-2025 20:30,126,140,1.111111111,90,122,0.871428571,109,0,0.893442623,0,,0,2.256278689,72,0.129496403,Difficult
+UA,1693,15-08-2025,ORD,DCA,15-08-2025 18:00,15-08-2025 21:03,126,138,1.095238095,77,136,0.985507246,121,0,0.889705882,0,,1,2.350444203,50,0.089928058,Difficult
+UA,1693,14-08-2025,ORD,DCA,14-08-2025 18:00,14-08-2025 21:03,126,136,1.079365079,77,132,0.970588235,118,0,0.893939394,0,,-1,2.308258383,56,0.1,Difficult
+UA,2331,15-08-2025,ORD,PHL,15-08-2025 06:15,15-08-2025 09:22,126,134,1.063492063,73,121,0.902985075,108,0,0.892561983,0,,-1,2.259039552,71,0.127697842,Difficult
+UA,5380,15-08-2025,ORD,LGA,15-08-2025 07:00,15-08-2025 10:19,126,140,1.111111111,96,141,1.007142857,126,0,0.893617021,0,,-1,2.399509456,43,0.077553957,Difficult
+UA,2154,15-08-2025,ORD,DCA,15-08-2025 17:00,15-08-2025 20:01,126,142,1.126984127,109,121,0.852112676,108,0,0.892561983,0,,2,2.271655712,68,0.122302158,Difficult
+UA,265,11-08-2025,ORD,AUS,11-08-2025 17:35,11-08-2025 20:30,179,190,1.061452514,105,185,0.973684211,165,0,0.891891892,0,,1,2.257029555,73,0.130960854,Difficult
+UA,2425,15-08-2025,ORD,DFW,15-08-2025 12:45,15-08-2025 15:20,179,188,1.05027933,100,172,0.914893617,156,0,0.906976744,0,,1,2.272149791,67,0.120503597,Difficult
+UA,1989,15-08-2025,ORD,LAS,15-08-2025 11:25,15-08-2025 13:35,179,192,1.072625698,120,207,1.078125,183,0,0.884057971,0,,0,2.301330698,59,0.106115108,Difficult
+UA,1989,14-08-2025,ORD,LAS,14-08-2025 11:25,14-08-2025 13:35,179,189,1.055865922,120,208,1.09994709,186,0,0.894230769,0,,1,2.344043753,50,0.089285714,Difficult
+UA,1989,13-08-2025,ORD,LAS,13-08-2025 11:25,13-08-2025 13:35,179,190,1.061452514,120,206,1.084210526,183,0,0.888349515,0,,-2,2.298013158,58,0.102654867,Difficult
+UA,4453,15-08-2025,ORD,EWR,15-08-2025 17:00,15-08-2025 20:25,179,190,1.061452514,100,195,1.026315789,175,0,0.897435897,0,,1,2.316335088,56,0.100719424,Difficult
+UA,5631,15-08-2025,ORD,BOS,15-08-2025 06:00,15-08-2025 09:28,179,186,1.039106145,107,169,0.908602151,151,0,0.893491124,0,,2,2.241199731,74,0.133093525,Difficult
+UA,4431,15-08-2025,ORD,DEN,15-08-2025 20:15,15-08-2025 22:04,179,192,1.072625698,131,215,1.119791667,192,0,0.893023256,0,,2,2.398412326,44,0.079136691,Difficult
+UA,2488,15-08-2025,ORD,DFW,15-08-2025 07:40,15-08-2025 10:20,179,188,1.05027933,75,188,1,168,0,0.893617021,0,,0,2.293896041,62,0.111510791,Difficult
+UA,1117,11-08-2025,ORD,MCO,11-08-2025 17:30,11-08-2025 21:18,202,212,1.04950495,107,240,1.132075472,216,0,0.9,0,,1,2.411084906,44,0.078291815,Difficult
+UA,929,15-08-2025,ORD,FRA,15-08-2025 21:40,16-08-2025 13:20,214,213,0.995327103,130,262,1.230046948,236,0,0.900763359,0,,-1,2.496137699,35,0.06294964,Difficult
+UA,944,15-08-2025,ORD,FRA,15-08-2025 16:15,16-08-2025 07:55,243,248,1.020576132,160,285,1.149193548,259,0,0.90877193,0,,-1,2.457549419,39,0.069892473,Difficult
+BA,296,15-08-2025,ORD,LHR,15-08-2025 21:05,16-08-2025 11:05,214,226,1.056074766,150,230,1.017699115,208,0,0.904347826,0,,2,2.36812295,47,0.084532374,Difficult
+BA,294,15-08-2025,ORD,LHR,15-08-2025 17:15,16-08-2025 07:10,216,232,1.074074074,160,242,1.043103448,221,0,0.91322314,0,,1,2.430399611,41,0.073651935,Difficult
+UA,934,15-08-2025,ORD,LHR,15-08-2025 09:00,15-08-2025 22:55,276,282,1.02173913,150,305,1.081560284,281,0,0.921311475,0,,0,2.46461047,38,0.068345324,Difficult
+YX,3718,15-08-2025,ORD,MSN,15-08-2025 21:05,15-08-2025 22:04,65,70,1.076923077,66,41,0.585714286,38,0,0.926829268,0,,-2,2.289456571,118,0.212230216,Difficult
+OO,5291,15-08-2025,ORD,IND,15-08-2025 18:25,15-08-2025 20:31,70,72,1.028571429,66,54,0.75,48,0,0.888888889,0,,0,2.196031746,138,0.248201439,Difficult
+OO,5362,15-08-2025,ORD,MKE,15-08-2025 16:30,15-08-2025 17:29,50,54,1.08,64,32,0.592592593,28,0,0.875,0,,1,2.147592593,145,0.260431655,Difficult
+OO,5140,15-08-2025,ORD,CMX,15-08-2025 15:58,15-08-2025 18:41,50,56,1.12,61,28,0.5,25,0,0.892857143,0,,2,2.205714286,134,0.241007194,Difficult
+OO,5021,15-08-2025,ORD,SUX,15-08-2025 12:45,15-08-2025 14:23,50,52,1.04,43,18,0.346153846,16,0,0.888888889,0,,-2,2.023525641,159,0.285971223,Medium
+OO,5448,15-08-2025,ORD,FWA,15-08-2025 10:25,15-08-2025 12:30,50,54,1.08,45,31,0.574074074,28,0,0.903225806,0,,2,2.257298357,126,0.226618705,Difficult
+OO,5499,15-08-2025,ORD,SBN,15-08-2025 21:05,15-08-2025 23:05,50,54,1.08,65,16,0.296296296,14,0,0.875,0,,2,1.951296296,167,0.300359712,Medium
+G7,4403,14-08-2025,ORD,GRB,14-08-2025 15:58,14-08-2025 17:09,50,52,1.04,66,28,0.538461538,25,0,0.892857143,0,,0,2.124230769,101,0.180357143,Difficult
+G7,4443,14-08-2025,ORD,DAY,14-08-2025 12:45,14-08-2025 15:00,50,56,1.12,65,45,0.803571429,40,0,0.888888889,0,,1,2.201279762,81,0.144642857,Difficult
+UA,2494,14-08-2025,ORD,MCI,14-08-2025 08:35,14-08-2025 10:16,70,72,1.028571429,59,31,0.430555556,28,0,0.903225806,0,,0,2.162352564,91,0.1625,Difficult
+UA,2403,14-08-2025,ORD,MCI,14-08-2025 18:30,14-08-2025 20:09,70,66,0.942857143,45,30,0.454545455,27,0,0.9,0,,0,2.029401515,159,0.283928571,Medium
+UA,2627,14-08-2025,ORD,MSP,14-08-2025 11:41,14-08-2025 13:21,70,72,1.028571429,49,34,0.472222222,31,0,0.911764706,0,,-1,2.21256038,78,0.139285714,Difficult
+YX,3718,14-08-2025,ORD,MSN,14-08-2025 21:05,14-08-2025 22:04,65,70,1.076923077,66,38,0.542857143,35,0,0.921052632,0,,1,2.319808247,54,0.096428571,Difficult
+YX,3433,14-08-2025,ORD,CVG,14-08-2025 16:35,14-08-2025 19:02,76,67,0.881578947,45,36,0.537313433,23,0,0.638888889,0,,-9,-1.016591644,430,0.767857143,Medium
+YX,3464,15-08-2025,ORD,PIT,15-08-2025 21:15,15-08-2025 23:58,76,82,1.078947368,241,59,0.719512195,34,0,0.576271186,0,,16,1.017499523,167,0.300359712,Medium`;
+
+// We will use this 'app' object to organize our code. It makes it cleaner and easier to read.
+const app = {
+    allFlightRecords: [],
+    chartInstances: {}, // This will hold our chart objects so we can update them.
+
+    // This is the main function that starts everything.
+    init: function() {
+        // First, we set up all the buttons and dropdowns to listen for clicks or changes.
+        this.setupEventListeners();
+
+        // Next, we load the raw CSV data from the text block above and parse it into a clean list.
+        this.allFlightRecords = this.parseFlightData(csvData);
+
+        // Now we populate the filters with the airlines and dates from our data.
+        this.populateFilters();
+
+        // We call render() once at the start to show the initial state of the dashboard.
+        this.render();
+
+        // Finally, hide the loading screen and show the dashboard.
+        setTimeout(() => {
+            document.getElementById('loader-container').style.display = 'none';
+            document.getElementById('dashboard-content').classList.remove('opacity-0');
+        }, 500); // A small delay feels smoother.
+    },
+
+    // This function runs every time a filter is changed.
+    render: function() {
+        // 1. Get the current user selections from the filters.
+        const selections = this.getUserSelections();
+        
+        // 2. Filter the master list of flights to get only the ones that match the selections.
+        const filteredFlights = this.filterFlightData(selections);
+        
+        // 3. Get the data for the previous day to compare against.
+        const yesterdayFlights = this.getYesterdayData(selections.date);
+        
+        // 4. Update all the visual parts of the dashboard with the newly filtered data.
+        this.renderKpis(filteredFlights, yesterdayFlights);
+        this.renderDifficultyPieChart(filteredFlights);
+        this.renderScoreHistogram(filteredFlights);
+        this.renderTopFlightsTable(filteredFlights);
+    },
+
+    // --- SETUP FUNCTIONS ---
+
+    setupEventListeners: function() {
+        // When any filter changes, we re-render the entire dashboard.
+        document.getElementById('date-filter').addEventListener('change', () => this.render());
+        document.getElementById('airline-filter').addEventListener('change', () => this.render());
+        document.getElementById('difficulty-filter').addEventListener('change', () => this.render());
+        document.getElementById('reset-filters').addEventListener('click', () => this.resetAllFilters());
+    },
+    
+    populateFilters: function() {
+        const airlineFilter = document.getElementById('airline-filter');
+        const dateFilter = document.getElementById('date-filter');
+
+        // Find all unique airline codes from the data to create the dropdown.
+        const airlines = [...new Set(this.allFlightRecords.map(item => item.company_id))].sort();
+        airlines.forEach(airline => {
+            const option = document.createElement('option');
+            option.value = airline;
+            option.textContent = airline;
+            airlineFilter.appendChild(option);
+        });
+
+        // Find the most recent date in the dataset and set the date picker to it.
+        const dates = this.allFlightRecords.map(d => d.dateObject).filter(Boolean);
+        if (dates.length > 0) {
+            const maxDate = new Date(Math.max.apply(null, dates));
+            dateFilter.value = maxDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+        }
+    },
+
+    resetAllFilters: function() {
+        // To reset, we just set the dropdowns back to 'all' and repopulate the date filter.
+        this.populateFilters();
+        document.getElementById('airline-filter').value = 'all';
+        document.getElementById('difficulty-filter').value = 'all';
+        this.render(); // Re-render the dashboard with default filters.
+    },
+
+    // --- DATA HANDLING ---
+
+    parseFlightData: function(csv) {
+        const lines = csv.trim().split('\n');
+        const headers = lines[0].split(',').map(h => h.trim());
+        const records = lines.slice(1).map(line => {
+            const values = line.split(',');
+            if (values.length !== headers.length) return null; // Skip malformed rows
+            
+            const flight = {};
+            headers.forEach((header, i) => {
+                const value = values[i] ? values[i].trim() : '';
+                // Convert numeric fields to numbers, otherwise keep as text.
+                flight[header] = !isNaN(value) && value !== '' ? Number(value) : value;
+            });
+            
+            // We also create a proper JavaScript Date object for easier filtering.
+            flight.dateObject = this.parseHumanDate(flight.scheduled_departure_date_local);
+            return flight;
+        });
+        return records.filter(Boolean); // Filter out any null (malformed) rows.
+    },
+    
+    getUserSelections: function() {
+        const dateStr = document.getElementById('date-filter').value;
+        return {
+            date: new Date(dateStr + 'T00:00:00'), // Use local time for correct day matching
+            airline: document.getElementById('airline-filter').value,
+            difficulty: document.getElementById('difficulty-filter').value,
+        };
+    },
+    
+    filterFlightData: function(selections) {
+        return this.allFlightRecords.filter(flight => {
+            if (!flight.dateObject) return false;
+
+            // Check if the flight's date matches the selected date.
+            const isDateMatch = flight.dateObject.toDateString() === selections.date.toDateString();
+            
+            // Check if the airline matches, or if 'All Airlines' is selected.
+            const isAirlineMatch = selections.airline === 'all' || flight.company_id === selections.airline;
+            
+            // Check if the difficulty class matches, or if 'All Classes' is selected.
+            const isDifficultyMatch = selections.difficulty === 'all' || flight.difficulty_class === selections.difficulty;
+
+            return isDateMatch && isAirlineMatch && isDifficultyMatch;
+        });
+    },
+
+    getYesterdayData: function(selectedDate) {
+        const yesterday = new Date(selectedDate);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return this.allFlightRecords.filter(flight => {
+             return flight.dateObject && flight.dateObject.toDateString() === yesterday.toDateString();
+        });
+    },
+
+    // --- RENDERING FUNCTIONS ---
+    
+    renderKpis: function(todayFlights, yesterdayFlights) {
+        // Calculate metrics for today
+        const totalFlights = todayFlights.length;
+        const avgDelay = totalFlights > 0 ? todayFlights.reduce((sum, d) => sum + (d.delay_minutes || 0), 0) / totalFlights : 0;
+        const difficultCount = todayFlights.filter(d => d.difficulty_class === 'Difficult').length;
+        const difficultPct = totalFlights > 0 ? (difficultCount / totalFlights) * 100 : 0;
+        const avgTransferRatio = totalFlights > 0 ? todayFlights.reduce((sum, d) => sum + (d.transfer_ratio || 0), 0) / totalFlights * 100 : 0;
+
+        // Calculate metrics for yesterday
+        const yesterdayTotalFlights = yesterdayFlights.length;
+        const yesterdayAvgDelay = yesterdayTotalFlights > 0 ? yesterdayFlights.reduce((sum, d) => sum + (d.delay_minutes || 0), 0) / yesterdayTotalFlights : 0;
+        const yesterdayAvgTransferRatio = yesterdayTotalFlights > 0 ? yesterdayFlights.reduce((sum, d) => sum + (d.transfer_ratio || 0), 0) / yesterdayTotalFlights * 100 : 0;
+
+        // Update the big number cards
+        document.getElementById('total-flights').textContent = totalFlights;
+        document.getElementById('avg-delay').textContent = avgDelay.toFixed(1);
+        document.getElementById('difficult-flights-count').textContent = difficultCount;
+        document.getElementById('difficult-flights-pct').textContent = `${difficultPct.toFixed(1)}% of total`;
+        document.getElementById('avg-transfer-ratio').textContent = `${avgTransferRatio.toFixed(1)}%`;
+
+        // Update the "vs yesterday" comparison text below the numbers
+        this.renderComparisonText('flights-change', totalFlights, yesterdayTotalFlights);
+        this.renderComparisonText('delay-change', avgDelay, yesterdayAvgDelay);
+        this.renderComparisonText('transfer-ratio-change', avgTransferRatio, yesterdayAvgTransferRatio);
+    },
+
+    renderComparisonText: function(elementId, todayValue, yesterdayValue) {
+        const element = document.getElementById(elementId);
+        if (yesterdayValue === 0) {
+            element.textContent = 'vs yesterday (N/A)';
+            element.className = 'text-sm text-slate-500 mt-1';
+            return;
+        }
+
+        const change = todayValue - yesterdayValue;
+        const pctChange = (change / yesterdayValue) * 100;
+        
+        // Determine color and text based on whether the change is good or bad
+        let colorClass = 'text-slate-500'; // Neutral
+        if (pctChange > 0) colorClass = 'text-red-400'; // Bad change
+        if (pctChange < 0) colorClass = 'text-green-400'; // Good change
+
+        const prefix = change > 0 ? '+' : '';
+        element.textContent = `${prefix}${change.toFixed(1)} (${pctChange.toFixed(1)}%) vs yesterday`;
+        element.className = `text-sm ${colorClass} mt-1`;
+    },
+
+    renderDifficultyPieChart: function(data) {
+        const ctx = document.getElementById('difficulty-pie-chart').getContext('2d');
+        const counts = { 'Difficult': 0, 'Medium': 0, 'Easy': 0 };
+        data.forEach(d => {
+            if (counts[d.difficulty_class] !== undefined) counts[d.difficulty_class]++;
+        });
+
+        const chartData = {
+            labels: ['Difficult', 'Medium', 'Easy'],
+            datasets: [{
+                data: [counts['Difficult'], counts['Medium'], counts['Easy']],
+                backgroundColor: ['#f87171', '#facc15', '#4ade80'], // Red, Yellow, Green
+                borderColor: '#1e293b',
+                borderWidth: 3,
+            }]
+        };
+
+        // If the chart doesn't exist yet, create it. Otherwise, just update its data.
+        if (this.chartInstances.difficultyPie) {
+            this.chartInstances.difficultyPie.data = chartData;
+            this.chartInstances.difficultyPie.update();
+        } else {
+            this.chartInstances.difficultyPie = new Chart(ctx, {
+                type: 'doughnut',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } },
+                    cutout: '70%',
+                }
+            });
+        }
+    },
+    
+    renderScoreHistogram: function(data) {
+        const ctx = document.getElementById('score-histogram').getContext('2d');
+        const scores = data.map(d => d.difficulty_score).filter(s => s != null);
+
+        const binnedData = this.binTheData(scores, 10);
+
+        // If the chart doesn't exist yet, create it. Otherwise, just update its data.
+        if (this.chartInstances.scoreHistogram) {
+            this.chartInstances.scoreHistogram.data.labels = binnedData.labels;
+            this.chartInstances.scoreHistogram.data.datasets[0].data = binnedData.counts;
+            this.chartInstances.scoreHistogram.update();
+        } else {
+            this.chartInstances.scoreHistogram = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: binnedData.labels,
+                    datasets: [{
+                        label: 'Number of Flights',
+                        data: binnedData.counts,
+                        backgroundColor: '#38bdf8',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'transparent' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+    },
+    
+    renderTopFlightsTable: function(data) {
+        const tableBody = document.getElementById('top-flights-table');
+        tableBody.innerHTML = ''; // Clear out the old rows first.
+
+        // Sort the data by difficulty score, highest first, and take the top 10.
+        const sortedData = [...data].sort((a, b) => (b.difficulty_score || 0) - (a.difficulty_score || 0));
+        const top10 = sortedData.slice(0, 10);
+
+        // If there are no flights, show a message.
+        if (top10.length === 0) {
+            const row = `<tr><td colspan="3" class="px-4 py-10 text-center text-slate-500">No flights match the filters.</td></tr>`;
+            tableBody.innerHTML = row;
+            return;
+        }
+
+        // Create and add a table row for each of the top 10 flights.
+        top10.forEach(flight => {
+            const difficultyClass = flight.difficulty_class || 'N/A';
+            let classColor = 'text-slate-300'; // Default color
+            if (difficultyClass === 'Difficult') classColor = 'text-red-400';
+            if (difficultyClass === 'Medium') classColor = 'text-yellow-400';
+            if (difficultyClass === 'Easy') classColor = 'text-green-400';
+
+            const rowHTML = `
+                <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                    <td class="px-4 py-3 font-medium">${flight.company_id} ${flight.flight_number}</td>
+                    <td class="px-4 py-3">${(flight.difficulty_score || 0).toFixed(2)}</td>
+                    <td class="px-4 py-3">
+                        <span class="font-semibold ${classColor}">${difficultyClass}</span>
+                    </td>
+                </tr>
+            `;
+            tableBody.innerHTML += rowHTML;
+        });
+    },
+
+    // --- HELPER UTILITIES ---
+
+    // A simple function to parse dates in DD-MM-YYYY format.
+    parseHumanDate: function(dateStr) {
+        if (!dateStr || typeof dateStr !== 'string') return null;
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return null;
+        // The parts are [Day, Month, Year]. Month is 0-indexed in JS, so we subtract 1.
+        return new Date(parts[2], parts[1] - 1, parts[0]);
+    },
+
+    // A helper to group scores into bins for the histogram chart.
+    binTheData: function(scores, binCount) {
+        if (scores.length === 0) return { labels: [], counts: [] };
+        
+        const minScore = Math.min(...scores);
+        const maxScore = Math.max(...scores);
+        // Avoid division by zero if all scores are the same
+        const binSize = (maxScore - minScore) / binCount || 1;
+        
+        const labels = [];
+        const counts = Array(binCount).fill(0);
+
+        // Create nice labels for each bin, like "1.5-2.0"
+        for (let i = 0; i < binCount; i++) {
+            const binStart = minScore + i * binSize;
+            labels.push(`${binStart.toFixed(1)}-${(binStart + binSize).toFixed(1)}`);
+        }
+
+        // Go through each score and put it in the correct bin.
+        scores.forEach(score => {
+            let binIndex = Math.floor((score - minScore) / binSize);
+            if (binIndex === binCount) binIndex--; // Handle the max score edge case
+            if (binIndex >= 0 && binIndex < binCount) {
+                counts[binIndex]++;
+            }
+        });
+
+        return { labels, counts };
+    },
+};
+
+// This is the starting point. When the webpage is fully loaded, it calls our app's init function.
+document.addEventListener('DOMContentLoaded', () => {
+    app.init();
+});
+
+</script>
+</body>
+</html>
+
