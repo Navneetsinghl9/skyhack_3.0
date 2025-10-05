@@ -1,58 +1,138 @@
-Team: Deadline Dominators (Navneet Singh & Pratyush Senhi)
-Live Demonstration: https://navneetsinghl9.github.io/skyhack_3.0/
-1. Problem Statement: The Imperative for Proactive Operations
-Airport ground handling represents a significant logistical challenge wherein minor disruptions can propagate throughout the network, leading to substantial financial repercussions and widespread passenger inconvenience. The principal challenge confronting ground operations managers lies in the transition from a reactive to a proactive operational paradigm—moving from addressing delays as they arise to mitigating risks before they materialize. This strategic shift necessitates an analytical tool capable of identifying high-risk flights with precision and immediacy.
 
-2. Proposed Solution: An Actionable Intelligence Hub
-The proposed solution is an interactive, real-time dashboard that synthesizes disparate operational data streams into a prioritized, actionable framework. This platform provides a consolidated overview of daily operational complexity, thereby enabling management to strategically identify and allocate resources to flights exhibiting the highest degree of risk.
 
-3. Core Functionalities
-Predictive Complexity Score: A proprietary metric engineered to quantify the operational complexity of individual flights. The score is derived from a weighted model incorporating variables such as passenger load, baggage transfer ratios, and the volume of special service requests.
+# ✈️ SkyHack 3.0: A Proactive Flight Turnaround Management Solution
 
-Dynamic Data Filtering: The dashboard features dynamic filtering capabilities, enabling granular data analysis by date, airline, and the calculated difficulty classification.
+**Team:** Deadline Dominators (Navneet Singh & Pratyush Senhi)
+**🌐 Live Dashboard:** [SkyHack 3.0 Website](https://navneetsinghl9.github.io/skyhack_3.0/)
 
-Real-Time Key Performance Indicators (KPIs): A suite of KPIs provides a real-time summary of critical operational metrics, including total flight volume, average delay duration, and a count of flights classified as 'Difficult', complete with comparative analysis against the preceding day's performance.
+---
 
-Prioritized Action List: A dynamically updated table highlights the ten flights with the highest complexity scores, serving as a primary daily action plan for operational managers.
+## 🚨 1. Problem Statement: The Imperative for Proactive Operations
 
-Advanced Visualizations: Interactive charts facilitate a deeper analytical exploration of the data, illustrating the distribution and trends of flight complexity scores and classifications.
+Airport ground handling is a **logistical challenge** where even minor disruptions can ripple across the entire network, leading to:
 
-4. Methodology: The Data Pipeline
-The solution is underpinned by a robust data processing pipeline responsible for the ingestion, cleansing, aggregation, and enrichment of information from multiple disparate sources. This process culminates in the generation of a final, analysis-ready dataset (skyhack_excel.csv) that powers the dashboard.
+* Substantial **financial repercussions**
+* **Passenger dissatisfaction** due to delays
 
-Primary Data Sources:
+The challenge:
 
-Flight Level Data.csv: Contains core flight schedules, fleet specifications, and scheduled ground times.
+* Moving from **reactive operations** (addressing delays after they occur)
+* To **proactive operations** (predicting and mitigating risks before they arise)
 
-PNR Flight Level Data.csv: Provides detailed passenger booking information (PNR).
+👉 To enable this shift, ground managers require an **analytical tool** that can **identify high-risk flights** quickly and accurately.
 
-Bag Level Data (1).csv: Includes specifics on individual baggage items, distinguishing between origin and transfer.
+---
 
-PNR Remark Level Data (2).csv: Details special service requests (SSRs) associated with bookings.
+## 💡 2. Proposed Solution: An Actionable Intelligence Hub
 
-Airports Data (1).csv: Comprises supplementary airport metadata.
+We designed an **interactive, real-time dashboard** that integrates multiple operational data sources into a **single, prioritized, and actionable framework**.
 
-SQL-Based Data Transformation:
-A comprehensive SQL script (skyhack_code.sql) executes the primary data transformation logic:
+🌐 **Check it out live:** [SkyHack 3.0 Dashboard](https://navneetsinghl9.github.io/skyhack_3.0/)
 
-Aggregation and Cleansing: Performs accurate calculation of passenger totals (by handling unique PNRs), baggage counts, and SSR volumes for each discrete flight.
+This platform provides:
 
-Data Integration: Joins the five distinct data sources into a unified, cohesive dataset.
+* A **consolidated daily overview** of operational complexity
+* **Resource prioritization** for flights at highest risk
 
-Metric Calculation: Computes essential operational metrics, including load factor, transfer ratio, and delay duration in minutes.
+---
 
-Complexity Scoring and Ranking: Applies the proprietary algorithm to generate the final difficulty_score and subsequently ranks each flight relative to its peers on a daily basis.
+## ⚙️ 3. Core Functionalities
 
-5. Technical Implementation
-The project was implemented utilizing the following technologies:
+### 🔮 Predictive Complexity Score
 
-Data Transformation: Standard SQL was employed for all data cleansing, aggregation, and metric calculation tasks.
+The **complexity score** is a proprietary metric that quantifies operational risk.
+It is derived from the following **key metrics**:
 
-Frontend Development: The dashboard interface was constructed using HTML5 and styled with the Tailwind CSS utility-first framework.
+* **`turn_slack`** → Available buffer time in turnaround schedule
+* **`bags_per_pax`** → Average number of bags handled per passenger
+* **`transfer_ratio`** → Proportion of passengers with connecting flights
+* **`ssr_per_100pax`** → Special service requests per 100 passengers
+* **`delay_minutes`** → Average flight delay duration (in minutes)
+* **`load_factor`** → Seat occupancy level of the flight
+* **`difficulty_score`** → Final weighted risk score combining all metrics
 
-Data Visualization: All graphical representations of data were rendered using the Chart.js library.
+### 🔍 Dynamic Data Filtering
 
-Client-Side Logic: Dynamic interactivity and data filtering were implemented using modern JavaScript (ES6).
+* Filter data by:
 
-6. Conclusion and Impact
-The resulting dashboard delivers a comprehensive, 360-degree perspective on daily ground operations. By presenting complex data in an intuitive and actionable format, it empowers management to transition from reactive troubleshooting to strategic, data-driven decision-making. This ultimately leads to enhanced operational efficiency, reduced delays, and an improved overall passenger experience.
+  * **Date**
+  * **Airline**
+  * **Difficulty classification**
+
+### 📊 Real-Time KPIs
+
+* Total flight volume
+* Average delay duration
+* Number of **“Difficult”** flights
+* Comparative analysis with the **previous day**
+
+### 🚀 Prioritized Action List
+
+* A **Top 10 flights** list with highest complexity scores
+* Acts as the **primary daily action plan** for managers
+
+### 📈 Advanced Visualizations
+
+* Interactive charts (via Chart.js) to explore:
+
+  * Distribution of flight complexity scores
+  * Daily/weekly/monthly operational trends
+
+---
+
+## 🔗 4. Methodology: The Data Pipeline
+
+Our solution is powered by a **robust ETL (Extract-Transform-Load) pipeline**, which ingests, cleans, and unifies data from multiple sources into a final **analysis-ready dataset (`skyhack_excel.csv`)**.
+
+### 📂 Primary Data Sources
+
+1. **Flight Level Data.csv** → Core schedules, fleet specs, ground times
+2. **PNR Flight Level Data.csv** → Passenger booking details (PNRs)
+3. **Bag Level Data.csv** → Baggage details (origin vs. transfer)
+4. **PNR Remark Level Data.csv** → SSRs (Special Service Requests)
+5. **Airports Data.csv** → Supplementary airport metadata
+
+### 🗄️ SQL-Based Transformation (skyhack_code.sql)
+
+* **Aggregation & Cleansing**: Passenger totals, baggage counts, SSR volumes
+* **Data Integration**: Joins 5 datasets into one unified source
+* **Metric Calculation**: Load factor, transfer ratio, delay duration, etc.
+* **Complexity Scoring**: Proprietary algorithm assigns **difficulty_score** and daily rankings
+
+---
+
+## 🛠️ 5. Technical Implementation
+
+* **Data Transformation** → SQL (aggregation, cleaning, calculations)
+* **Frontend** → HTML5 + Tailwind CSS (clean, utility-first design)
+* **Data Visualization** → Chart.js (interactive, real-time graphs)
+* **Client-Side Logic** → Modern JavaScript (ES6) for filtering and interactivity
+
+---
+
+## ✅ 6. Conclusion & Impact
+
+The **SkyHack 3.0 Dashboard** provides:
+
+* A **360° operational view** of daily ground handling activities
+* **Intuitive data presentation** for quick decision-making
+* Transition from **reactive troubleshooting** → **proactive strategy**
+
+🌐 **Try the live dashboard here:** [https://navneetsinghl9.github.io/skyhack_3.0/](https://navneetsinghl9.github.io/skyhack_3.0/)
+
+**Benefits:**
+
+* Reduced delays
+* Optimized resource allocation
+* Improved passenger satisfaction
+* Enhanced overall operational efficiency
+
+---
+
+## 👨‍💻 Team Deadline Dominators
+
+* **Navneet Singh**
+* **Pratyush Senhi**
+
+🔗 **Live Demo:** [SkyHack 3.0 Website](https://navneetsinghl9.github.io/skyhack_3.0/)
+
